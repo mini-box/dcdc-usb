@@ -29,6 +29,26 @@
 #include "dcdc-usb.h"
 
 #define P(t, v...) fprintf(stderr, t "\n", ##v)
+static int bytes2int(unsigned char c1, unsigned char c2)
+{
+    int i = c1;
+    i = i << 8;
+    i = i | c2;
+    
+    return i;
+}
+
+static int byte2bits(unsigned char c)
+{
+    int i,n = 0;
+    for (i = 0; i < 8; i++)
+    {
+	n = n * 10;
+	if ((c >> i) & 1)
+	    n = n + 1;
+    }
+    return n;
+}
 
 static int dcdc_send_command(struct usb_dev_handle *h, unsigned char cmd, unsigned char val)
 {
@@ -95,7 +115,13 @@ int dcdc_parse_data(struct usb_dev_handle *h, unsigned char *data, int size)
 	    ignition_voltage = (float) data[4] * 0.1558f;
 	    output_voltage = (float) data[5] * 0.1170f;
 	    status = data[6];
-	    P("mode: %d", mode & 0x03);
+	    switch(mode & 0x03)
+	    {
+		case 0: P("mode: 0 (dumb)"); break;
+		case 1: P("mode: 1 (automotive)"); break;
+		case 2: P("mode: 2 (script)"); break;
+		case 3: P("mode: 3 (ups)");break;
+	    }
 	    P("time config: %d", (mode >> 5) & 0x07);
 	    P("voltage config: %d", (mode >> 2) & 0x07);
 	    P("state: %d", state);
@@ -105,6 +131,17 @@ int dcdc_parse_data(struct usb_dev_handle *h, unsigned char *data, int size)
 	    P("power switch: %s", ((status & 0x04) ? "On":"Off"));
 	    P("output enable: %s", ((status & 0x08) ? "On":"Off"));
 	    P("aux vin enable %s", ((status & 0x10) ? "On":"Off"));
+	    P("status flags 1: %d", byte2bits(data[6]));
+	    P("status flags 2: %d", byte2bits(data[7]));
+	    P("voltage flags: %d", byte2bits(data[8]));
+	    P("timer flags: %d", byte2bits(data[9]));
+	    P("flash pointer: %d", data[10]);
+	    P("timer wait: %d", bytes2int(data[11], data[12]));
+	    P("timer vout: %d", bytes2int(data[13], data[14]));
+	    P("timer vaux: %d", bytes2int(data[15], data[16]));
+	    P("timer pw switch: %d", bytes2int(data[17], data[18]));
+	    P("timer off delay: %d", bytes2int(data[19], data[20]));
+	    P("timer hard off: %d", bytes2int(data[21], data[22]));
 	    P("version: %d.%d", ((data[23] >> 5) & 0x07), (data[23] & 0x1F));
 	}
 	break;
