@@ -1,10 +1,11 @@
 PACKAGES=libusb
-LIBS=`pkg-config --libs ${PACKAGES}`
-INCS=`pkg-config --cflags ${PACKAGES}` -Wall
+LIBS=`pkg-config --libs ${PACKAGES}` -lm
+INCS=`pkg-config --cflags ${PACKAGES}`
+CFLAGS=-Wall 
 
-LIBSRC=dcdc-usb-comm.c dcdc-usb-proto.c
-MAINSRC=dcdc-usb-main.c
-OBJS=dcdc-usb-main.o
+LIBSRC=dcdc-usb-comm.c dcdc-usb-proto.c dcdc-usb-parse.c
+MAINSRC=main.c
+OBJS=main.o
 
 all: libdcdc-usb.so dcdc-usb
 install: all

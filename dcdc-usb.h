@@ -4,15 +4,24 @@
 #define DCDC_VID	0x04d8
 #define DCDC_PID	0xd003
 
+#define MAX_TRANSFER_SIZE	24
 /* USB communication wrappers */
+struct usb_dev_handle * dcdc_connect();
 int dcdc_send(struct usb_dev_handle *h, unsigned char *data, int size);
 int dcdc_recv(struct usb_dev_handle *h, unsigned char *data, int size, int timeout);
-struct usb_dev_handle * dcdc_connect();
 int dcdc_setup(struct usb_dev_handle *h);
 
 /* DCDC USB protocol */
-int dcdc_get_status(struct usb_dev_handle *h, unsigned char **data);
-int dcdc_parse_data(struct usb_dev_handle *h, unsigned char *data, int size);
+int dcdc_get_status(struct usb_dev_handle *h, unsigned char *buf, int buflen);
+int dcdc_set_vout(struct usb_dev_handle *h, double vout);
+int dcdc_get_vout(struct usb_dev_handle *h, unsigned char *buf, int buflen);
+int dcdc_parse_data(unsigned char *data, int size);
+
+/* DCDC USB data parsing */
+void dcdc_parse_values(unsigned char *data);
+void dcdc_parse_cmd(unsigned char *data);
+void dcdc_parse_internal_msg(unsigned char *data);
+void dcdc_parse_mem(unsigned char *data);
 
 /* from windows source with small sanity edits */
 
@@ -46,6 +55,7 @@ int dcdc_parse_data(struct usb_dev_handle *h, unsigned char *data, int size);
 #define CMD_SCRIPT_START		0x10
 #define CMD_SCRIPT_STOP			0x11
 #define CMD_SLEEP			0x12
+#define CMD_READ_REGULATOR_STEP		0x13
 
 /* For reading out memory */
 #define TYPE_CODE_MEMORY		0x00

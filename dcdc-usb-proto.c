@@ -23,54 +23,42 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <usb.h>
 
 #include "dcdc-usb.h"
 
-#define P(t, v...) fprintf(stderr, t "\n", ##v)
-static int bytes2int(unsigned char c1, unsigned char c2)
+/* transforms user value to a value understood by device */
+static int vout2dev(double vout)
 {
-    int i = c1;
-    i = i << 8;
-    i = i | c2;
-    
-    return i;
-}
+    double rpot = (double)0.8 * CT_R1 / (vout - (double)0.8) - CT_R2;
+    double result = (257 * (rpot-CT_RW) / CT_RP);
 
-static int byte2bits(unsigned char c)
-{
-    int i,n = 0;
-    for (i = 0; i < 8; i++)
-    {
-	n = n * 10;
-	if ((c >> i) & 1)
-	    n = n + 1;
-    }
-    return n;
+    if (result<0) result = 0;
+    if (result>255) result = 255;
+
+    return (unsigned char)result;
 }
 
 static int dcdc_send_command(struct usb_dev_handle *h, unsigned char cmd, unsigned char val)
 {
-    unsigned char c[5];
+    unsigned char c[3];
     c[0] = DCDCUSB_CMD_OUT;
     c[1] = cmd;
     c[2] = val;
-    c[3] = 0;
-    c[4] = 0;
     
-    return dcdc_send(h, c, 5);
+    return dcdc_send(h, c, 3);
 }
 
-int dcdc_get_status(struct usb_dev_handle *h, unsigned char **data)
+int dcdc_get_status(struct usb_dev_handle *h, unsigned char *buf, int buflen)
 {
     unsigned char c[2];
     int ret = 0;
     
-    *data = (unsigned char *)malloc(24);
-    if (*data == NULL)
+    if (buflen < MAX_TRANSFER_SIZE)
 	return -1;
-    
+	
     c[0] = DCDCUSB_GET_ALL_VALUES;
     c[1] = 0;
     
@@ -80,7 +68,7 @@ int dcdc_get_status(struct usb_dev_handle *h, unsigned char **data)
 	return -2;
     }
     
-    if ((ret = dcdc_recv(h, *data, 24, 1000)) < 0)
+    if ((ret = dcdc_recv(h, buf, MAX_TRANSFER_SIZE, 1000)) < 0)
     {
 	fprintf(stderr, "Cannot get device status\n");
 	return -3;
@@ -89,66 +77,51 @@ int dcdc_get_status(struct usb_dev_handle *h, unsigned char **data)
     return ret;
 }
 
-int dcdc_parse_data(struct usb_dev_handle *h, unsigned char *data, int size)
+int dcdc_set_vout(struct usb_dev_handle *h, double vout)
 {
-
-    int i, mode, state, status;
-    float ignition_voltage, input_voltage, output_voltage;
+    if (vout < 5) vout = 5;
+    if (vout > 24) vout = 24;
     
-    if ((h == NULL) || (data == NULL))
+    return dcdc_send_command(h, CMD_WRITE_VOUT, vout2dev(vout));
+}
+
+/* value will be shown on dcdc_parse_data() */
+int dcdc_get_vout(struct usb_dev_handle *h, unsigned char *buf, int buflen)
+{
+    int ret = 0;
+    
+    if (buflen < MAX_TRANSFER_SIZE)
 	return -1;
 
+    if ((ret = dcdc_send_command(h, CMD_READ_VOUT, 0)) < 0)
+	return ret;
+
+    ret = dcdc_recv(h, buf, MAX_TRANSFER_SIZE, 1000);
+
+    return ret;
+}
+
+int dcdc_parse_data(unsigned char *data, int size)
+{
+    if (data == NULL)
+	return -1;
+
+#ifdef DEBUG
+    int i;
     for (i = 0; i < size; i++)
     {
 	if (i % 8 == 0) fprintf(stderr, "\n");
 	fprintf(stderr, "[%02d] = 0x%02x ", i, data[i]);
     }
     fprintf(stderr, "\n");
-    
+#endif
+
     switch(data[0])
     {
-	case DCDCUSB_RECV_ALL_VALUES:
-	{
-	    mode = data[1];
-	    state = data[2];
-	    input_voltage = (float) data[3] * 0.1558f;
-	    ignition_voltage = (float) data[4] * 0.1558f;
-	    output_voltage = (float) data[5] * 0.1170f;
-	    status = data[6];
-	    switch(mode & 0x03)
-	    {
-		case 0: P("mode: 0 (dumb)"); break;
-		case 1: P("mode: 1 (automotive)"); break;
-		case 2: P("mode: 2 (script)"); break;
-		case 3: P("mode: 3 (ups)");break;
-	    }
-	    P("time config: %d", (mode >> 5) & 0x07);
-	    P("voltage config: %d", (mode >> 2) & 0x07);
-	    P("state: %d", state);
-	    P("input voltage: %.2f", input_voltage);
-	    P("ignition voltage: %.2f", ignition_voltage);
-	    P("output voltage: %2f", output_voltage);
-	    P("power switch: %s", ((status & 0x04) ? "On":"Off"));
-	    P("output enable: %s", ((status & 0x08) ? "On":"Off"));
-	    P("aux vin enable %s", ((status & 0x10) ? "On":"Off"));
-	    P("status flags 1: %d", byte2bits(data[6]));
-	    P("status flags 2: %d", byte2bits(data[7]));
-	    P("voltage flags: %d", byte2bits(data[8]));
-	    P("timer flags: %d", byte2bits(data[9]));
-	    P("flash pointer: %d", data[10]);
-	    P("timer wait: %d", bytes2int(data[11], data[12]));
-	    P("timer vout: %d", bytes2int(data[13], data[14]));
-	    P("timer vaux: %d", bytes2int(data[15], data[16]));
-	    P("timer pw switch: %d", bytes2int(data[17], data[18]));
-	    P("timer off delay: %d", bytes2int(data[19], data[20]));
-	    P("timer hard off: %d", bytes2int(data[21], data[22]));
-	    P("version: %d.%d", ((data[23] >> 5) & 0x07), (data[23] & 0x1F));
-	}
-	break;
-	case DCDCUSB_CMD_IN:
-	{
-	}
-	break;
+	case DCDCUSB_RECV_ALL_VALUES: dcdc_parse_values(data);break;
+	case DCDCUSB_CMD_IN: dcdc_parse_cmd(data); break;
+	case INTERNAL_MESG: dcdc_parse_internal_msg(data); break;
+	case DCDCUSB_MEM_READ_IN: dcdc_parse_mem(data); break;
 	default:
 	    fprintf(stderr, "Unknown message\n");
     }
