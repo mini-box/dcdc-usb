@@ -21,7 +21,7 @@ libdcdc-usb.so: $(LIBSRC)
 	$(CC) $(CFLAGS) -shared -fPIC -L. $(LIBSRC) -Wl,-soname,$@ -o $@ 
 
 dcdc-usb: $(MAINSRC)
-	$(CC) $(CFLAGS) $(MAINSRC) -o $@ $(LIBS) -L. -ldcdc-usb
+	$(CC) $(CFLAGS) $(MAINSRC) -L. -ldcdc-usb -o $@ $(LIBS)
 
 clean:
 	rm -rf *.o *.so dcdc-usb
