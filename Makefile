@@ -9,6 +9,7 @@ OBJS=main.o
 
 all: libdcdc-usb.so dcdc-usb
 install: all
+	install  dcdc-usb.h /usr/local/include/
 	install -v -m755 dcdc-usb /usr/local/bin/
 	install -v -m755  libdcdc-usb.so  /usr/local/lib
 	ldconfig
