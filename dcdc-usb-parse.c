@@ -95,7 +95,11 @@ void dcdc_parse_values(unsigned char *data)
     P("timer off delay: %d", bytes2int(data[19], data[20]));
     P("timer hard off: %d", bytes2int(data[21], data[22]));
     P("version: %d.%d", ((data[23] >> 5) & 0x07), (data[23] & 0x1F));
-    
+}
+
+void dcdc_parse_ignition(unsigned char *data)
+{
+	P("%.2f", (float) data[4] * 0.1558f);
 }
 
 void dcdc_parse_cmd(unsigned char *data)

@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include <usb.h>
 
@@ -36,6 +37,7 @@ void showhelp(char *prgname)
     printf (" -a \t show all device settings\n");
     printf (" -h \t show help message\n");
     printf (" -v \t set voltage out value (float)\n");
+    printf (" -o \t continously output ignition voltage in 1 second intervals\n");
 }
 
 int main(int argc, char **argv)
@@ -44,7 +46,7 @@ int main(int argc, char **argv)
     unsigned char data[MAX_TRANSFER_SIZE];
     int ret;
     char *s;
-    int arg = 0, showall = 0, setvoltage = 0;
+    int arg = 0, showall = 0, setvoltage = 0, monitor = 0;
     double vout = 5.0;
     
     while ( ++arg < argc ) 
@@ -65,6 +67,10 @@ int main(int argc, char **argv)
 		if (vout != 0)
 		    setvoltage = 1;
 	    }
+	if (strncmp(s, "-o", 2) == 0)
+	{
+		monitor = 1;
+	}
     }
     h = dcdc_connect();
     
@@ -88,6 +94,20 @@ int main(int argc, char **argv)
 	    return 3;
 	}
 	dcdc_parse_data(data, ret);
+    }
+
+    if (monitor)
+    {
+	while (true)
+	{
+        	if ((ret = dcdc_get_status(h, data, MAX_TRANSFER_SIZE)) <= 0)
+        	{
+            		fprintf(stderr, "Failed to get status from device\n");
+            		return 3;
+        	}
+	        dcdc_parse_ignition(data);
+		sleep(1);
+	}
     }
     
     if (setvoltage)
