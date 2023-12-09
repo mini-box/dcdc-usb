@@ -22,6 +22,7 @@ void dcdc_parse_values(unsigned char *data);
 void dcdc_parse_cmd(unsigned char *data);
 void dcdc_parse_internal_msg(unsigned char *data);
 void dcdc_parse_mem(unsigned char *data);
+void dcdc_parse_ignition(unsigned char *data);
 
 /* from windows source with small sanity edits */
 
